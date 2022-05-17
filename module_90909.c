@@ -1,3 +1,5 @@
+
+   
 /**
  * Author......: See docs/credits.txt
  * License.....: MIT
@@ -27,8 +29,8 @@ static const u64   OPTS_TYPE      = OPTS_TYPE_STOCK_MODULE
                                   | OPTS_TYPE_PT_GENERATE_BE
                                   | OPTS_TYPE_SELF_TEST_DISABLE;
 static const u32   SALT_TYPE      = SALT_TYPE_EMBEDDED;
-static const char *ST_PASS        = "1234";
-static const char *ST_HASH        = "eyJ1c2VybmFtZSI6ImFkbWluIn0.YjdgRQ.15feJoHISWlil2BlCIBF_0Ni9pg";
+static const char *ST_PASS        = "hashcat";
+static const char *ST_HASH        = "eyJ1c2VybmFtZSI6ImFkbWluIn0.YjdgRQ.1OTlf1PD0H9wXsu_qS0aywAJVD8";
 
 u32         module_attack_exec    (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ATTACK_EXEC;     }
 u32         module_dgst_pos0      (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return DGST_POS0;       }
@@ -45,15 +47,6 @@ u32         module_salt_type      (MAYBE_UNUSED const hashconfig_t *hashconfig, 
 const char *module_st_hash        (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ST_HASH;         }
 const char *module_st_pass        (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ST_PASS;         }
 
-typedef struct fsc
-{
-  u32 salt_buf[2047];
-  u32 salt_len;
-  u32 signature_pos;
-  u32 signature_len;
-
-} fsc_t;
-
 salt_t *module_benchmark_salt (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra)
 {
   salt_t *salt = (salt_t *) hcmalloc (sizeof (salt_t));
@@ -64,51 +57,6 @@ salt_t *module_benchmark_salt (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYB
   return salt;
 }
 
-void *module_benchmark_esalt (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra)
-{
-  fsc_t *fsc = (fsc_t *) hcmalloc (sizeof (fsc_t));
-
-  fsc->signature_len = 27;
-  fsc->salt_len      = 34;
-
-  return fsc;
-}
-
-u64 module_esalt_size (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra)
-{
-  const u64 esalt_size = (const u64) sizeof (fsc_t);
-
-  return esalt_size;
-}
-/*
-u64 module_kern_type_dynamic (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const void *digest_buf, MAYBE_UNUSED const salt_t *salt, MAYBE_UNUSED const void *esalt_buf, MAYBE_UNUSED const void *hook_salt_buf, MAYBE_UNUSED const hashinfo_t *hash_info)
-{
-  const fsc_t *fsc = (const fsc_t *) esalt_buf;
-
-  u64 kern_type = -1;
-
-  // it would be more accurate to base64 decode the header_pos buffer and then to string match HS256 - same goes for the other algorithms
-
-  if (fsc->signature_len == 43)
-  {
-    kern_type = KERN_TYPE_fsc_HS256;
-  }
-  else if (fsc->signature_len == 64)
-  {
-    kern_type = KERN_TYPE_fsc_HS384;
-  }
-  else if (fsc->signature_len == 86)
-  {
-    kern_type = KERN_TYPE_fsc_HS512;
-  }
-  else
-  {
-    return (PARSER_HASH_LENGTH);
-  }
-
-  return kern_type;
-}*/
-
 int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED void *digest_buf, MAYBE_UNUSED salt_t *salt, MAYBE_UNUSED void *esalt_buf, MAYBE_UNUSED void *hook_salt_buf, MAYBE_UNUSED hashinfo_t *hash_info, const char *line_buf, MAYBE_UNUSED const int line_len)
 {
 
@@ -117,7 +65,7 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
   token.token_cnt  = 3;
 
   token.sep[0]     = '.';
-  token.len_min[0] = 0; // HOLY FUCK THIS IS SKETCHY, we read past the first . at hash[27] because these two tokens form the second salt together
+  token.len_min[0] = 0; 
   token.len_max[0] = 27;
   token.attr[0]    = TOKEN_ATTR_VERIFY_LENGTH
                    | TOKEN_ATTR_VERIFY_BASE64C;
@@ -144,36 +92,13 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
   const u8 *hash_pos = token.buf[2];
   const int hash_len = token.len[2];
   const int salt_len = salt1_len + 1 + salt2_len;
-  //printf("\nSalt2: %08x\n", salt2_pos);
-  //printf("Hash: %s\n", hash_pos);
+  
   const bool parse_rc = generic_salt_decode (hashconfig, salt2_pos, salt_len, (u8 *) salt->salt_buf, (int *) &salt->salt_len);
 
   if (parse_rc == false) return (PARSER_SALT_LENGTH);
   
 
-  memcpy (salt->salt_buf, line_buf, salt_len);/*
-  printf("Salt buffer: %s\n", (char *)salt->salt_buf);
-  printf("Salt: %08x\n", salt->salt_buf[0]);
-  printf("Salt: %08x\n", salt->salt_buf[1]);
-  printf("Salt: %08x\n", salt->salt_buf[2]);
-  printf("Salt: %08x\n", salt->salt_buf[3]);
-  printf("Salt: %08x\n", salt->salt_buf[4]);
-  printf("Salt: %08x\n", salt->salt_buf[5]);
-  printf("Salt: %08x\n", salt->salt_buf[6]);
-  printf("Salt: %08x\n", salt->salt_buf[7]);
-  printf("Salt: %08x\n", salt->salt_buf[8]);
-  printf("Salt: %08x\n", salt->salt_buf[9]);
-  printf("Salt: %08x\n", salt->salt_buf[10]);
-  printf("Salt: %08x\n", salt->salt_buf[11]);
-  printf("Salt: %08x\n", salt->salt_buf[12]);
-  printf("Salt: %08x\n", salt->salt_buf[13]);
-  printf("Salt: %08x\n", salt->salt_buf[14]);
-  printf("Salt: %08x\n", salt->salt_buf[15]);
-  printf("Salt: %08x\n", salt->salt_buf[16]);*/
-  /*for (int i = 0; i < salt_len; i++9
-    {
-        printf("Salt: %s", salt->salt_buf[i]);
-    }*/
+  memcpy (salt->salt_buf, line_buf, salt_len);
 
 
   u8 tmp_buf[100] = { 0 };
@@ -187,14 +112,7 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
   digest[2] = byte_swap_32 (digest[2]);
   digest[3] = byte_swap_32 (digest[3]);
   digest[4] = byte_swap_32 (digest[4]);
-  /*
-  printf("\n\n\nDigest: %s\n", digest);
-  printf("Digest: %08x\n", digest[0]);
-  printf("Digest: %08x\n", digest[1]);
-  printf("Digest: %08x\n", digest[2]);
-  printf("Digest: %08x\n", digest[3]);
-  printf("Digest: %08x\n", digest[4]);
-  printf("Digest: %08x\n", digest[5]);*/
+  
   return (PARSER_OK);
 }
 
@@ -216,7 +134,7 @@ int module_hash_encode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
   memcpy (tmp_buf, tmp, 20);
   base64_encode (int_to_base64url, (const u8 *) tmp_buf, 48, (u8 *) ptr_plain);
 
-  ptr_plain[64] = 0;
+  ptr_plain[27] = 0;
   
 
   const int line_len = snprintf (line_buf, line_size, "%s.%s", (char *) salt->salt_buf, (char *) ptr_plain);
@@ -230,7 +148,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_interface_version        = MODULE_INTERFACE_VERSION_CURRENT;
 
   module_ctx->module_attack_exec              = module_attack_exec;
-  module_ctx->module_benchmark_esalt          = module_benchmark_esalt;
+  module_ctx->module_benchmark_esalt          = MODULE_DEFAULT;
   module_ctx->module_benchmark_hook_salt      = MODULE_DEFAULT;
   module_ctx->module_benchmark_mask           = MODULE_DEFAULT;
   module_ctx->module_benchmark_salt           = module_benchmark_salt;
@@ -243,7 +161,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_dgst_pos3                = module_dgst_pos3;
   module_ctx->module_dgst_size                = module_dgst_size;
   module_ctx->module_dictstat_disable         = MODULE_DEFAULT;
-  module_ctx->module_esalt_size               = module_esalt_size;
+  module_ctx->module_esalt_size               = MODULE_DEFAULT;
   module_ctx->module_extra_buffer_size        = MODULE_DEFAULT;
   module_ctx->module_extra_tmp_size           = MODULE_DEFAULT;
   module_ctx->module_extra_tuningdb_block     = MODULE_DEFAULT;
